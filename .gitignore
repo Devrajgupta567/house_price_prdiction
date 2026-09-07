@@ -1,0 +1,45 @@
+web/node_modules/
+web/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments
+.venv/
+venv/
+env/
+zenml-env/
+
+# IDEs
+.idea/
+.vscode/
+
+# Java Backend
+backend/target/
+backend/data/
+*.mv.db
+*.trace.db
+
+# Generated ML artifacts and local stores
+mlruns/
+.zenml/
+.zen/
+artifacts/
+models/*
+!models/house_price_model/
+!models/metrics.json
+
+# Agent & System files
+.agents/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

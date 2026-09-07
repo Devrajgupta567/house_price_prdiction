@@ -1,0 +1,114 @@
+📊 1. Dataset Overview
+The dataset contains 2930 observations and 82 features
+Features are a mix of:
+Numerical variables (int64, float64)
+Categorical variables (object)
+
+👉 Conclusion:
+
+The dataset is high-dimensional and requires preprocessing, including encoding and feature selection.
+
+❗ 2. Missing Values Analysis
+🚨 High Missing Columns (>80%)
+Alley
+PoolQC
+Fence
+MiscFeature
+
+👉 Conclusion:
+
+These features have extremely high missing values and provide limited information → should be dropped
+
+⚠️ Moderate Missing Columns
+Garage-related features
+Basement-related features
+
+👉 Important Insight:
+
+Missing values are not random
+They indicate:
+
+No Garage
+No Basement
+
+👉 Conclusion:
+
+These should be filled with meaningful labels like:
+
+"NoGarage"
+"NoBasement"
+🟢 Low Missing Columns
+Few numerical features with 1–2 missing values
+
+👉 Conclusion:
+
+Can be safely imputed using median (numerical) or mode (categorical)
+
+📈 3. Target Variable Analysis (SalePrice)
+Highly right-skewed distribution
+Presence of high-value outliers
+
+👉 Conclusion:
+
+Apply log transformation to normalize distribution
+Handle outliers to improve model performance
+
+📊 4. Numerical Features Insights
+Features like:
+GrLivArea
+LotArea
+TotalBsmtSF
+
+👉 Show:
+
+Wide range
+Presence of outliers
+
+👉 Conclusion:
+
+Outlier treatment is necessary to prevent model bias
+
+🏷️ 5. Categorical Features Insights
+Some features have:
+High cardinality → e.g., Neighborhood
+High imbalance → e.g., Street (mostly one category)
+
+👉 Conclusion:
+
+High-cardinality → careful encoding needed
+Highly imbalanced → may have low predictive power
+🔗 6. Bivariate Analysis (Feature vs Target)
+🔥 Strong Positive Correlation:
+OverallQual
+GrLivArea
+GarageCars
+TotalBsmtSF
+
+👉 Conclusion:
+
+These are key predictors of SalePrice
+
+❌ Weak/No Correlation:
+Some features show little relationship
+
+👉 Conclusion:
+
+Can be considered for removal during feature selection
+
+🧩 7. Multivariate Analysis
+Combination of features (e.g., Area + Quality) strongly impacts price
+Groups of features (garage, basement) are highly correlated
+
+👉 Conclusion:
+
+Feature interaction is important
+Multicollinearity exists → needs handling
+🚨 8. Outlier Analysis
+Extreme values observed in:
+GrLivArea
+LotArea
+SalePrice
+
+👉 Conclusion:
+
+Outliers must be removed or capped to avoid skewing predictions

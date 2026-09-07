@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # ── 1. PostgreSQL Database ────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: valualtion-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-valualtion}
+      POSTGRES_USER: ${POSTGRES_USER:-valualtion_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ValuAltionSecure2026!}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-valualtion_user} -d ${POSTGRES_DB:-valualtion}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 2. Python FastAPI ML Service ──────────────────────────────────────────
+  ml-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    container_name: valualtion-ml
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── 3. Spring Boot Backend API ────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: valualtion-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    ports:
+      - "9090:9090"
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-valualtion}
+      DATABASE_USERNAME: ${POSTGRES_USER:-valualtion_user}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-ValuAltionSecure2026!}
+      DATABASE_DRIVER: org.postgresql.Driver
+      JPA_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      ML_SERVICE_URL: http://ml-service:8000
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-getvalaltion@gmail.com}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-tgxruqdpmcbyuavm}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:80,http://localhost:5173}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── 4. React Frontend (Nginx) ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    container_name: valualtion-web
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+
+volumes:
+  postgres_data:

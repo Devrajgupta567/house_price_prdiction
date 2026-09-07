@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>House Price Estimate</title>
+  <style>
+    body { font-family: Georgia, serif; max-width: 640px; margin: 40px auto; color: #0f2744; }
+    label { display: block; margin-top: 12px; font-size: 14px; }
+    input { width: 100%; padding: 8px; box-sizing: border-box; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    button { margin-top: 20px; padding: 10px 18px; background: #0f2744; color: #fff; border: 0; cursor: pointer; }
+    #result { font-size: 20px; margin-top: 24px; }
+    .error { color: #8b1e1e; }
+    p { color: #445; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>House Price Estimate</h1>
+  <p>Enter basic property details. Unused model fields (porches, pool, IDs) are filled with safe defaults from Ames Housing.</p>
+
+  <form id="estimateForm">
+    <div class="row">
+      <div>
+        <label>Living area (sq ft)</label>
+        <input name="gr_liv_area" type="number" value="896" required />
+      </div>
+      <div>
+        <label>Lot area (sq ft)</label>
+        <input name="lot_area" type="number" value="11622" required />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Bedrooms</label>
+        <input name="bedrooms" type="number" value="2" min="0" required />
+      </div>
+      <div>
+        <label>Full bathrooms</label>
+        <input name="full_bath" type="number" value="1" min="0" required />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Half bathrooms</label>
+        <input name="half_bath" type="number" value="0" min="0" />
+      </div>
+      <div>
+        <label>Garage (cars)</label>
+        <input name="garage_cars" type="number" value="1" min="0" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Year built</label>
+        <input name="year_built" type="number" value="1961" required />
+      </div>
+      <div>
+        <label>Remodel year (optional)</label>
+        <input name="year_remod" type="number" value="1961" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Overall quality (1–10)</label>
+        <input name="overall_qual" type="number" value="5" min="1" max="10" required />
+      </div>
+      <div>
+        <label>Overall condition (1–10)</label>
+        <input name="overall_cond" type="number" value="6" min="1" max="10" required />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Basement (sq ft, optional)</label>
+        <input name="total_bsmt_sf" type="number" value="882" min="0" />
+      </div>
+      <div>
+        <label>Actual CSV price (optional check)</label>
+        <input id="actualPrice" type="number" value="105000" />
+      </div>
+    </div>
+    <button type="submit">Estimate price</button>
+  </form>
+
+  <div id="result"></div>
+
+  <script>
+    const API = "http://127.0.0.1:8000";
+
+    document.getElementById("estimateForm").onsubmit = async (event) => {
+      event.preventDefault();
+      const result = document.getElementById("result");
+      result.className = "";
+      result.textContent = "Estimating...";
+
+      const form = new FormData(event.target);
+      const payload = {};
+      for (const [key, value] of form.entries()) {
+        if (value === "") continue;
+        payload[key] = Number(value);
+      }
+
+      try {
+        const response = await fetch(API + "/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "Prediction failed");
+        }
+        const predicted = data.predicted_price;
+        let text = "Estimated price: $" + predicted.toLocaleString();
+        const actual = Number(document.getElementById("actualPrice").value);
+        if (actual) {
+          const err = predicted - actual;
+          const pct = Math.abs(err) / actual * 100;
+          text += " | Actual: $" + actual.toLocaleString();
+          text += " | Error: " + pct.toFixed(2) + "%";
+        }
+        result.textContent = text;
+      } catch (e) {
+        result.className = "error";
+        result.textContent = e.message;
+      }
+    };
+  </script>
+</body>
+</html>

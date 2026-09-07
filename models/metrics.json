@@ -1,0 +1,8 @@
+{
+  "model_name": "prices_predictor",
+  "source": "Data/archive.zip",
+  "r_squared": 0.8562265924055875,
+  "mse_log_saleprice": 0.019969374261074525,
+  "metric_scale": "log1p(SalePrice)",
+  "features": "numeric only; Order and PID excluded"
+}
