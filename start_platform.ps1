@@ -9,7 +9,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", ".\zenml-env\Scrip
 Start-Sleep -Seconds 2
 
 # 2. Start Java Spring Boot Backend
-Write-Host "[2/3] Starting Java Spring Boot Backend on port 8088..." -ForegroundColor Green
+Write-Host "[2/3] Starting Java Spring Boot Backend on port 9090..." -ForegroundColor Green
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "java -jar backend\target\backend-1.0.0.jar"
 
 Start-Sleep -Seconds 3
@@ -21,6 +21,6 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd web; npm run d
 Write-Host "===================================================" -ForegroundColor Cyan
 Write-Host "   All services launched!" -ForegroundColor Green
 Write-Host "   Frontend:   http://localhost:5173" -ForegroundColor Yellow
-Write-Host "   Java API:   http://localhost:8088/api/v1/health" -ForegroundColor Yellow
+Write-Host "   Java API:   http://localhost:9090/api/v1/health" -ForegroundColor Yellow
 Write-Host "   ML Service: http://localhost:8000/health" -ForegroundColor Yellow
 Write-Host "===================================================" -ForegroundColor Cyan
