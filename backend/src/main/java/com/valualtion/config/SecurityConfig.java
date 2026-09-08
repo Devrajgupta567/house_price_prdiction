@@ -59,6 +59,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/forgot-password",
                                 "/api/v1/auth/forgot-password/**",
                                 "/api/v1/valuation/estimate",
+                                "/api/v1/valuation/*/email-report",
+                                "/api/v1/valuation/*",
                                 "/api/v1/health",
                                 "/h2-console/**",
                                 "/error"
