@@ -24,6 +24,7 @@ backend/target/
 backend/data/
 *.mv.db
 *.trace.db
+*.lock.db
 
 # Generated ML artifacts and local stores
 mlruns/

@@ -88,6 +88,9 @@ export const valuationAPI = {
   getById: (id) => request(`/valuation/${id}`),
 
   history: () => request("/valuation/history"),
+
+  emailReport: (id, body) =>
+    request(`/valuation/${id}/email-report`, { method: "POST", body: JSON.stringify(body || {}) }),
 };
 
 // ── User API ──────────────────────────────────────────

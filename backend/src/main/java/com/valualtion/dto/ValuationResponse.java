@@ -20,6 +20,9 @@ public class ValuationResponse {
     private Integer fullBath;
     private Integer yearBuilt;
     private Integer overallQual;
+    private Double baselinePrice;
+    private Double priceDifference;
+    private List<FeatureAttributionDto> attributions = new ArrayList<>();
     private List<ComparableDto> comparables = new ArrayList<>();
     private LocalDateTime createdAt;
 
@@ -64,6 +67,15 @@ public class ValuationResponse {
 
     public Integer getOverallQual() { return overallQual; }
     public void setOverallQual(Integer overallQual) { this.overallQual = overallQual; }
+
+    public Double getBaselinePrice() { return baselinePrice; }
+    public void setBaselinePrice(Double baselinePrice) { this.baselinePrice = baselinePrice; }
+
+    public Double getPriceDifference() { return priceDifference; }
+    public void setPriceDifference(Double priceDifference) { this.priceDifference = priceDifference; }
+
+    public List<FeatureAttributionDto> getAttributions() { return attributions; }
+    public void setAttributions(List<FeatureAttributionDto> attributions) { this.attributions = attributions; }
 
     public List<ComparableDto> getComparables() { return comparables; }
     public void setComparables(List<ComparableDto> comparables) { this.comparables = comparables; }

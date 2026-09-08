@@ -37,9 +37,11 @@ public class Valuation {
     @Column(name = "confidence_level", nullable = false)
     private String confidenceLevel = "MODERATE";
 
-    @Lob
     @Column(name = "input_snapshot_json", columnDefinition = "TEXT")
     private String inputSnapshotJson;
+
+    @Column(name = "attribution_snapshot_json", columnDefinition = "TEXT")
+    private String attributionSnapshotJson;
 
     @OneToMany(mappedBy = "valuation", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Comparable> comparables = new ArrayList<>();
@@ -82,6 +84,9 @@ public class Valuation {
 
     public String getInputSnapshotJson() { return inputSnapshotJson; }
     public void setInputSnapshotJson(String inputSnapshotJson) { this.inputSnapshotJson = inputSnapshotJson; }
+
+    public String getAttributionSnapshotJson() { return attributionSnapshotJson; }
+    public void setAttributionSnapshotJson(String attributionSnapshotJson) { this.attributionSnapshotJson = attributionSnapshotJson; }
 
     public List<Comparable> getComparables() { return comparables; }
     public void setComparables(List<Comparable> comparables) { this.comparables = comparables; }

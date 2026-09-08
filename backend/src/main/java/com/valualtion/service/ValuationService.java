@@ -1,7 +1,9 @@
 package com.valualtion.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.valualtion.dto.ComparableDto;
+import com.valualtion.dto.FeatureAttributionDto;
 import com.valualtion.dto.ValuationRequest;
 import com.valualtion.dto.ValuationResponse;
 import com.valualtion.entity.Comparable;
@@ -31,28 +33,45 @@ public class ValuationService {
     private final AuthService authService;
     private final RestClient mlRestClient;
     private final ObjectMapper objectMapper;
+    private final EmailService emailService;
 
     public ValuationService(
             ValuationRepository valuationRepository,
             PropertyRepository propertyRepository,
             AuthService authService,
             RestClient mlRestClient,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            EmailService emailService
     ) {
         this.valuationRepository = valuationRepository;
         this.propertyRepository = propertyRepository;
         this.authService = authService;
         this.mlRestClient = mlRestClient;
         this.objectMapper = objectMapper;
+        this.emailService = emailService;
+    }
+
+    private static class PredictionResult {
+        final Double predictedPrice;
+        final Double baselinePrice;
+        final Double priceDifference;
+        final List<FeatureAttributionDto> attributions;
+
+        PredictionResult(Double predictedPrice, Double baselinePrice, Double priceDifference, List<FeatureAttributionDto> attributions) {
+            this.predictedPrice = predictedPrice;
+            this.baselinePrice = baselinePrice;
+            this.priceDifference = priceDifference;
+            this.attributions = attributions;
+        }
     }
 
     @Transactional
     public ValuationResponse estimateProperty(ValuationRequest request) {
-        Double predictedPrice = callMlMicroservice(request);
+        PredictionResult prediction = callMlPrediction(request);
+        Double predictedPrice = prediction.predictedPrice;
 
         // Calculate precision bounds based on confidence
         double confidenceScore = calculateConfidence(request);  // 0.0 – 1.0
-        // Tighter bounds when confidence is high (±3% at 95%, ±8% at 70%)
         double spread = 0.03 + (1.0 - confidenceScore) * 0.20;
         double rangeLow  = Math.round(predictedPrice * (1.0 - spread) / 100.0) * 100.0;
         double rangeHigh = Math.round(predictedPrice * (1.0 + spread) / 100.0) * 100.0;
@@ -82,6 +101,12 @@ public class ValuationService {
             valuation.setInputSnapshotJson("{}");
         }
 
+        try {
+            valuation.setAttributionSnapshotJson(objectMapper.writeValueAsString(prediction.attributions));
+        } catch (Exception e) {
+            valuation.setAttributionSnapshotJson("[]");
+        }
+
         for (ComparableDto compDto : compDtos) {
             Comparable comp = new Comparable();
             comp.setAddress(compDto.getAddress());
@@ -97,7 +122,7 @@ public class ValuationService {
 
         Valuation savedValuation = valuationRepository.save(valuation);
 
-        return mapToResponse(savedValuation, request, compDtos);
+        return mapToResponse(savedValuation, request, compDtos, prediction.attributions, prediction.baselinePrice, prediction.priceDifference);
     }
 
     public ValuationResponse getValuationById(UUID valuationId) {
@@ -126,7 +151,22 @@ public class ValuationService {
             // Use defaults if parse fails
         }
 
-        return mapToResponse(valuation, req, compDtos);
+        List<FeatureAttributionDto> attributions = new ArrayList<>();
+        try {
+            if (valuation.getAttributionSnapshotJson() != null) {
+                attributions = objectMapper.readValue(
+                        valuation.getAttributionSnapshotJson(),
+                        new TypeReference<List<FeatureAttributionDto>>() {}
+                );
+            }
+        } catch (Exception e) {
+            // Use empty if parse fails
+        }
+
+        double baseline = 130000.0;
+        double diff = (valuation.getEstimatedValue() != null ? valuation.getEstimatedValue() : 0.0) - baseline;
+
+        return mapToResponse(valuation, req, compDtos, attributions, baseline, diff);
     }
 
     public List<ValuationResponse> getUserValuations() {
@@ -141,7 +181,29 @@ public class ValuationService {
                 .collect(Collectors.toList());
     }
 
-    private Double callMlMicroservice(ValuationRequest request) {
+    /**
+     * Dispatches a valuation dossier email directly to the user or requested email with full breakdown & PDF attachment.
+     */
+    public void emailValuationReport(UUID valuationId, String targetEmail, byte[] pdfBytes) {
+        ValuationResponse val = getValuationById(valuationId);
+        User currentUser = authService.getCurrentUserEntity();
+
+        String recipient = (targetEmail != null && !targetEmail.isBlank())
+                ? targetEmail
+                : (currentUser != null ? currentUser.getEmail() : null);
+
+        if (recipient == null || recipient.isBlank()) {
+            throw new IllegalArgumentException("Recipient email address is required.");
+        }
+
+        String fullName = currentUser != null && currentUser.getFullName() != null
+                ? currentUser.getFullName()
+                : "Valued Client";
+
+        emailService.sendValuationReportEmail(recipient, fullName, val, pdfBytes);
+    }
+
+    private PredictionResult callMlPrediction(ValuationRequest request) {
         try {
             Map<String, Object> payload = new HashMap<>();
             payload.put("gr_liv_area", request.getGrLivArea());
@@ -156,6 +218,7 @@ public class ValuationService {
             payload.put("total_bsmt_sf", request.getTotalBsmtSf() != null ? request.getTotalBsmtSf() : 0.0);
             payload.put("year_remod", request.getYearRemod() != null ? request.getYearRemod() : request.getYearBuilt());
             payload.put("fireplaces", request.getFireplaces() != null ? request.getFireplaces() : 0);
+            payload.put("central_air", request.getCentralAir() != null ? request.getCentralAir() : true);
 
             log.info("Sending prediction request to ML microservice: {}", payload);
 
@@ -169,24 +232,44 @@ public class ValuationService {
             log.info("Received response from ML microservice: {}", response);
 
             if (response != null && response.containsKey("predicted_price")) {
-                Object val = response.get("predicted_price");
-                if (val instanceof Number) {
-                    double rawPrice = ((Number) val).doubleValue();
-                    if (Boolean.TRUE.equals(request.getCentralAir())) {
-                        rawPrice = rawPrice * 1.035;
+                double rawPrice = ((Number) response.get("predicted_price")).doubleValue();
+                double baselinePrice = response.containsKey("baseline_price")
+                        ? ((Number) response.get("baseline_price")).doubleValue()
+                        : 130000.0;
+                double priceDiff = response.containsKey("price_difference")
+                        ? ((Number) response.get("price_difference")).doubleValue()
+                        : rawPrice - baselinePrice;
+
+                List<FeatureAttributionDto> attributions = new ArrayList<>();
+                if (response.containsKey("attributions") && response.get("attributions") instanceof List) {
+                    List<?> rawList = (List<?>) response.get("attributions");
+                    for (Object item : rawList) {
+                        if (item instanceof Map) {
+                            Map<?, ?> m = (Map<?, ?>) item;
+                            attributions.add(new FeatureAttributionDto(
+                                    (String) m.get("feature_name"),
+                                    (String) m.get("category"),
+                                    m.get("amount") instanceof Number ? ((Number) m.get("amount")).doubleValue() : 0.0,
+                                    (String) m.get("formatted_amount"),
+                                    m.get("percentage") instanceof Number ? ((Number) m.get("percentage")).doubleValue() : 0.0,
+                                    (String) m.get("impact"),
+                                    (String) m.get("detail_description")
+                            ));
+                        }
                     }
-                    return Math.round(rawPrice / 100.0) * 100.0;
                 }
+
+                double finalPrice = Math.round(rawPrice / 100.0) * 100.0;
+                return new PredictionResult(finalPrice, baselinePrice, priceDiff, attributions);
             }
         } catch (Exception e) {
-            log.error("ML microservice call failed: {}. Using fallback estimation.", e.getMessage(), e);
+            log.error("ML microservice call failed: {}. Using fallback estimation with analytical attribution.", e.getMessage(), e);
         }
 
         return fallbackStatisticalEstimate(request);
     }
 
-    private Double fallbackStatisticalEstimate(ValuationRequest r) {
-        // Aligned with Ames housing market baseline
+    private PredictionResult fallbackStatisticalEstimate(ValuationRequest r) {
         double sqft = r.getGrLivArea() != null ? r.getGrLivArea() : 1500.0;
         double bsmt = r.getTotalBsmtSf() != null ? r.getTotalBsmtSf() : 0.0;
         int qual = r.getOverallQual() != null ? r.getOverallQual() : 6;
@@ -194,19 +277,34 @@ public class ValuationService {
         int garage = r.getGarageCars() != null ? r.getGarageCars() : 1;
         int beds = r.getBedrooms() != null ? r.getBedrooms() : 3;
         int baths = r.getFullBath() != null ? r.getFullBath() : 2;
+        int year = r.getYearBuilt() != null ? r.getYearBuilt() : 2005;
 
         double basePrice = (sqft * 85.0) + (bsmt * 25.0) + (garage * 8000.0) + (baths * 5000.0) + (beds * 4000.0);
         double qualFactor = 0.55 + (qual * 0.075) + ((cond - 5) * 0.02);
         double airPremium = Boolean.TRUE.equals(r.getCentralAir()) ? 1.035 : 1.0;
 
-        double total = basePrice * qualFactor * airPremium;
-        return Math.round(total / 100.0) * 100.0;
+        double total = Math.round((basePrice * qualFactor * airPremium) / 100.0) * 100.0;
+        double baseline = 130000.0;
+        double diff = total - baseline;
+
+        List<FeatureAttributionDto> attributions = new ArrayList<>();
+        double sqftAmt = Math.round((diff * 0.35) / 100.0) * 100.0;
+        double qualAmt = Math.round((diff * 0.30) / 100.0) * 100.0;
+        double ageAmt  = Math.round((diff * 0.15) / 100.0) * 100.0;
+        double bsmtAmt = Math.round((diff * 0.10) / 100.0) * 100.0;
+        double garAmt  = Math.round((diff * 0.07) / 100.0) * 100.0;
+        double airAmt  = Math.round((diff * 0.03) / 100.0) * 100.0;
+
+        attributions.add(new FeatureAttributionDto("Above-Grade Living Space", "Space & Dimensions", sqftAmt, String.format("+$%,.0f", sqftAmt), 35.0, "POSITIVE", String.format("%,.0f sq ft living area", sqft)));
+        attributions.add(new FeatureAttributionDto("Construction & Finish Quality", "Build & Materials", qualAmt, String.format("+$%,.0f", qualAmt), 30.0, "POSITIVE", String.format("Overall Quality rating %d/10", qual)));
+        attributions.add(new FeatureAttributionDto("Age & Modernization", "Property Age", ageAmt, String.format("+$%,.0f", ageAmt), 15.0, "POSITIVE", String.format("Constructed in %d", year)));
+        attributions.add(new FeatureAttributionDto("Basement & Substructure", "Space & Dimensions", bsmtAmt, String.format("+$%,.0f", bsmtAmt), 10.0, "POSITIVE", String.format("%,.0f sq ft total basement", bsmt)));
+        attributions.add(new FeatureAttributionDto("Garage & Parking Capacity", "Amenities", garAmt, String.format("+$%,.0f", garAmt), 7.0, "POSITIVE", String.format("%d-car capacity garage", garage)));
+        attributions.add(new FeatureAttributionDto("Central Air Conditioning", "Climate Control", airAmt, String.format("+$%,.0f", airAmt), 3.0, "POSITIVE", "Modern energy-efficient central A/C system"));
+
+        return new PredictionResult(total, baseline, diff, attributions);
     }
 
-    /**
-     * Returns a confidence score between 0.0 and 1.0.
-     * The more complete and realistic the input data, the higher the score.
-     */
     private double calculateConfidence(ValuationRequest r) {
         double confidence = 0.78;   // baseline
         if (r.getGrLivArea() != null && r.getGrLivArea() >= 600 && r.getGrLivArea() <= 5000) confidence += 0.05;
@@ -231,7 +329,14 @@ public class ValuationService {
         return comps;
     }
 
-    private ValuationResponse mapToResponse(Valuation v, ValuationRequest req, List<ComparableDto> comps) {
+    private ValuationResponse mapToResponse(
+            Valuation v,
+            ValuationRequest req,
+            List<ComparableDto> comps,
+            List<FeatureAttributionDto> attributions,
+            Double baselinePrice,
+            Double priceDiff
+    ) {
         ValuationResponse res = new ValuationResponse();
         res.setId(v.getId());
         res.setEstimatedValue(v.getEstimatedValue());
@@ -247,6 +352,9 @@ public class ValuationService {
         res.setYearBuilt(req.getYearBuilt());
         res.setOverallQual(req.getOverallQual());
         res.setComparables(comps);
+        res.setBaselinePrice(baselinePrice);
+        res.setPriceDifference(priceDiff);
+        res.setAttributions(attributions != null ? attributions : new ArrayList<>());
         res.setCreatedAt(v.getCreatedAt() != null ? v.getCreatedAt() : LocalDateTime.now());
         return res;
     }

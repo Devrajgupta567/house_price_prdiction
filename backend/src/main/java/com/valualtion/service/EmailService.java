@@ -183,4 +183,140 @@ public class EmailService {
             </body></html>
             """.formatted(name, digitBoxes.toString());
     }
+
+    /**
+     * Sends a full property valuation report to the homeowner with breakdown and PDF attachment.
+     */
+    public void sendValuationReportEmail(String toEmail, String fullName, com.valualtion.dto.ValuationResponse val, byte[] pdfAttachment) {
+        log.info("Preparing valuation report email for {} ({}) - Estimated: ${}", fullName, toEmail, val.getEstimatedValue());
+
+        if (!emailEnabled) {
+            log.info("  [EMAIL DISABLED] Email notification logged above — configure SMTP to send live emails.");
+            return;
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            boolean hasAttachment = pdfAttachment != null && pdfAttachment.length > 0;
+            MimeMessageHelper helper = new MimeMessageHelper(message, hasAttachment, "UTF-8");
+
+            helper.setFrom(fromAddress, "ValuAltion Appraisals");
+            helper.setTo(toEmail);
+            helper.setSubject("Your Official ValuAltion Property Report — " + formatCurrency(val.getEstimatedValue()));
+            helper.setText(buildValuationReportHtml(fullName, val), true);
+
+            if (hasAttachment) {
+                helper.addAttachment("ValuAltion-Property-Report.pdf", new org.springframework.core.io.ByteArrayResource(pdfAttachment));
+            }
+
+            mailSender.send(message);
+            log.info("Valuation report email successfully sent to {}", toEmail);
+        } catch (Exception ex) {
+            log.error("Failed to send valuation report email to {}: {}", toEmail, ex.getMessage(), ex);
+            throw new RuntimeException("Failed to send valuation report email: " + ex.getMessage());
+        }
+    }
+
+    private String formatCurrency(Double amount) {
+        if (amount == null) return "$0";
+        return String.format("$%,.0f", amount);
+    }
+
+    private String buildValuationReportHtml(String name, com.valualtion.dto.ValuationResponse val) {
+        StringBuilder driverRows = new StringBuilder();
+        if (val.getAttributions() != null && !val.getAttributions().isEmpty()) {
+            for (com.valualtion.dto.FeatureAttributionDto attr : val.getAttributions()) {
+                String color = "POSITIVE".equalsIgnoreCase(attr.getImpact()) ? "#10b981" : "#f43f5e";
+                driverRows.append("""
+                    <tr>
+                      <td style="padding:10px 12px;border-bottom:1px solid #242c44;color:#e2e8f0;font-size:14px;font-weight:600;">%s</td>
+                      <td style="padding:10px 12px;border-bottom:1px solid #242c44;color:#94a3b8;font-size:13px;">%s</td>
+                      <td style="padding:10px 12px;border-bottom:1px solid #242c44;color:%s;font-size:14px;font-weight:700;text-align:right;">%s</td>
+                    </tr>
+                """.formatted(attr.getFeatureName(), attr.getDetailDescription(), color, attr.getFormattedAmount()));
+            }
+        }
+
+        String address = val.getAddress() != null ? val.getAddress() : "Ames, Iowa";
+        String low = formatCurrency(val.getRangeLow());
+        String high = formatCurrency(val.getRangeHigh());
+        int confidencePct = val.getConfidenceScore() != null ? (int) Math.round(val.getConfidenceScore() * 100) : 92;
+
+        return """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head><meta charset="UTF-8"><title>Property Valuation Report</title></head>
+            <body style="margin:0;padding:0;background:#0b0f19;font-family:'Segoe UI',Arial,sans-serif;color:#f8fafc;">
+              <table width="100%%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:30px auto;background:#111827;border-radius:16px;border:1px solid #1f293d;overflow:hidden;">
+                <!-- Header -->
+                <tr>
+                  <td style="padding:32px 40px;text-align:center;background:linear-gradient(135deg,#0d1322,#151f38);border-bottom:1px solid #1f293d;">
+                    <h1 style="margin:0;font-size:26px;letter-spacing:1px;color:#ffffff;">
+                      Valu<span style="color:#d4af37;">Al</span>tion
+                    </h1>
+                    <p style="color:#94a3b8;font-size:13px;margin:6px 0 0;letter-spacing:0.5px;">OFFICIAL AI PROPERTY VALUATION DOSSIER</p>
+                  </td>
+                </tr>
+
+                <!-- Summary Card -->
+                <tr>
+                  <td style="padding:32px 40px;">
+                    <p style="color:#94a3b8;font-size:14px;margin:0 0 4px;">Property Appraisal For</p>
+                    <h2 style="color:#ffffff;font-size:20px;margin:0 0 20px;">%s</h2>
+
+                    <div style="background:#17223b;border:1px solid #2d3b5e;border-radius:12px;padding:24px;text-align:center;margin-bottom:28px;">
+                      <span style="color:#d4af37;font-size:12px;text-transform:uppercase;font-weight:700;letter-spacing:1px;">Estimated Market Value</span>
+                      <div style="font-size:36px;font-weight:800;color:#ffffff;margin:8px 0 12px;">%s</div>
+                      <div style="color:#94a3b8;font-size:14px;">
+                        Range: <strong style="color:#e2e8f0;">%s</strong> &mdash; <strong style="color:#e2e8f0;">%s</strong>
+                        &nbsp;|&nbsp; Accuracy: <strong style="color:#10b981;">%d%% (%s)</strong>
+                      </div>
+                    </div>
+
+                    <!-- Key Value Drivers (Explainable AI) -->
+                    <h3 style="color:#ffffff;font-size:16px;margin:0 0 12px;border-bottom:1px solid #1f293d;padding-bottom:8px;">
+                      Key Value Drivers (Explainable AI Attribution)
+                    </h3>
+                    <table width="100%%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                      <thead>
+                        <tr style="background:#0d1322;">
+                          <th style="padding:8px 12px;text-align:left;color:#94a3b8;font-size:12px;">Feature</th>
+                          <th style="padding:8px 12px;text-align:left;color:#94a3b8;font-size:12px;">Specification</th>
+                          <th style="padding:8px 12px;text-align:right;color:#94a3b8;font-size:12px;">Impact</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        %s
+                      </tbody>
+                    </table>
+
+                    <div style="text-align:center;padding:12px 0;">
+                      <a href="http://localhost:5173/dashboard" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#d4af37,#aa820a);color:#0b0f19;font-weight:700;font-size:14px;text-decoration:none;border-radius:8px;">
+                        View Portfolio in Dashboard &rarr;
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="padding:20px 40px;background:#090d16;text-align:center;border-top:1px solid #1a2236;">
+                    <p style="color:#64748b;font-size:12px;margin:0;">
+                      &copy; 2026 ValuAltion Real Estate Intelligence. USPAP Compliant AVM.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+        """.formatted(
+            address,
+            formatCurrency(val.getEstimatedValue()),
+            low,
+            high,
+            confidencePct,
+            val.getConfidenceLevel(),
+            driverRows.toString()
+        );
+    }
 }

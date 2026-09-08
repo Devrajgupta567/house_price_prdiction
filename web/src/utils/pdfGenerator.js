@@ -30,11 +30,12 @@ const getBase64ImageFromUrl = async (url) => {
 };
 
 /**
- * Generates and downloads a PDF Valuation Report
+ * Generates and downloads a PDF Valuation Report with Explainable AI attribution
  * @param {Object} valuation - The valuation response data
  * @param {Object} formData - The submitted form data (optional fallback)
+ * @param {Object} options - { returnBase64: boolean, autoDownload: boolean }
  */
-export const generateValuationPDF = async (valuation, formData) => {
+export const generateValuationPDF = async (valuation, formData, options = { returnBase64: false, autoDownload: true }) => {
   // A4 size: 210 x 297 mm
   const doc = new jsPDF({
     orientation: "portrait",
@@ -46,7 +47,6 @@ export const generateValuationPDF = async (valuation, formData) => {
   const margin = 20;
 
   // -- THEME COLORS --
-  // We'll use a clean light theme for the PDF but incorporate brand Gold/Dark
   const colors = {
     brandDark: [15, 23, 42],    // Slate 900
     brandGold: [212, 175, 55],  // Gold
@@ -72,158 +72,193 @@ export const generateValuationPDF = async (valuation, formData) => {
   const baths = formData?.full_bath ?? valuation.fullBath ?? "—";
   const yearBuilt = formData?.year_built ?? valuation.yearBuilt ?? "—";
   const quality = formData?.overall_qual ?? valuation.overallQual ?? "—";
-  const neighborhood = valuation.neighborhood || formData?.neighborhood || "—";
+  const neighborhood = valuation.neighborhood || formData?.neighborhood || "Ames, Iowa";
 
   let currentY = margin;
 
   // --- 1. HEADER (Logo & Title) ---
   const logoBase64 = await getBase64ImageFromUrl('/valualtion_gold_logo.png');
-  
   if (logoBase64) {
-    // logo aspect ratio roughly ~ 1:1, we'll draw it 20x20
-    doc.addImage(logoBase64, 'PNG', margin, currentY, 20, 20);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
-    doc.setTextColor(...colors.brandDark);
-    doc.text("ValuAltion", margin + 25, currentY + 12);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(...colors.brandGold);
-    doc.text("AI Property Valuation Report", margin + 25, currentY + 18);
-  } else {
-    // Fallback if logo fails to load
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
-    doc.setTextColor(...colors.brandDark);
-    doc.text("ValuAltion Report", margin, currentY + 10);
+    try {
+      doc.addImage(logoBase64, 'PNG', margin, currentY - 5, 24, 24);
+    } catch (e) {
+      console.warn("Could not draw logo:", e);
+    }
   }
 
-  // Date
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(...colors.textMuted);
-  const dateStr = new Date(valuation.createdAt || Date.now()).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric'
-  });
-  doc.text(`Generated: ${dateStr}`, pageWidth - margin, currentY + 18, { align: 'right' });
+  // Header texts
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor(...colors.brandDark);
+  doc.text("ValuAltion", margin + 28, currentY + 7);
 
-  currentY += 35;
-  
-  // Divider
-  doc.setDrawColor(226, 232, 240); // Slate 200
+  doc.setFontSize(9);
+  doc.setTextColor(...colors.textMuted);
+  doc.setFont("helvetica", "normal");
+  doc.text("AI-POWERED REAL ESTATE VALUATION DOSSIER", margin + 28, currentY + 13);
+
+  // Date and ref
+  doc.setFontSize(9);
+  doc.setTextColor(...colors.textMuted);
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  doc.text(`DATE: ${today}`, pageWidth - margin, currentY + 7, { align: "right" });
+  doc.text(`REF: VAL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`, pageWidth - margin, currentY + 13, { align: "right" });
+
+  currentY += 24;
+
+  // Thin separator
+  doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.5);
   doc.line(margin, currentY, pageWidth - margin, currentY);
-  currentY += 15;
 
-  // --- 2. PROPERTY ADDRESS ---
+  currentY += 10;
+
+  // --- 2. SUBJECT PROPERTY ADDRESS ---
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(16);
   doc.setTextColor(...colors.brandDark);
   doc.text(address, margin, currentY);
-  currentY += 6;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(...colors.textMuted);
-  doc.text(`${neighborhood}, Ames, IA`, margin, currentY);
-  currentY += 20;
 
-  // --- 3. VALUATION SUMMARY (The Big Numbers) ---
-  // Draw a very light bounding box
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.textMuted);
+  doc.text(`${neighborhood}, IA · Single Family Residential`, margin, currentY + 5);
+
+  currentY += 15;
+
+  // --- 3. VALUATION SUMMARY BOX ---
   doc.setFillColor(...colors.lightBg);
-  doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 40, 3, 3, "F");
-  
-  currentY += 12;
-  doc.setFontSize(10);
-  doc.setTextColor(...colors.textMuted);
-  doc.text("ESTIMATED MARKET VALUE", margin + 10, currentY);
-  
-  currentY += 12;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(26);
-  doc.setTextColor(...colors.brandDark);
-  doc.text(formatCurrency(estimated), margin + 10, currentY);
+  doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 30, 3, 3, "F");
+  doc.setDrawColor(...colors.brandGold);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 30, 3, 3, "S");
 
-  // Range
-  currentY -= 5;
+  currentY += 12;
+
+  // Estimated Value label & value
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.brandGold);
+  doc.text("ESTIMATED MARKET VALUE", margin + 10, currentY - 4);
+
+  doc.setFontSize(22);
+  doc.setTextColor(...colors.brandDark);
+  doc.text(formatCurrency(estimated), margin + 10, currentY + 7);
+
+  // Conservative & Optimistic Range
   doc.setFontSize(10);
   doc.setTextColor(...colors.textMuted);
   doc.setFont("helvetica", "normal");
-  doc.text("ESTIMATED RANGE", pageWidth - margin - 60, currentY - 7);
-  
+  doc.text("CONFIDENCE SPREAD", pageWidth - margin - 70, currentY - 4);
+
   doc.setFontSize(12);
   doc.setTextColor(...colors.textMain);
-  doc.text(`${formatCurrency(low)} - ${formatCurrency(high)}`, pageWidth - margin - 60, currentY);
+  doc.text(`${formatCurrency(low)} — ${formatCurrency(high)}`, pageWidth - margin - 70, currentY + 4);
 
-  currentY += 35; // Move past the box
+  currentY += 28;
 
   // --- 4. PROPERTY SPECS & AI CONFIDENCE ---
-  // We'll draw two columns
   const col1X = margin;
   const col2X = pageWidth / 2 + 10;
   let gridY = currentY;
 
   // Property details title
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.setTextColor(...colors.brandDark);
   doc.text("Property Summary", col1X, gridY);
 
-  // AI Confidence title
-  doc.text("AI Model Accuracy", col2X, gridY);
-  gridY += 10;
+  doc.text("Model Accuracy", col2X, gridY);
+  gridY += 8;
 
-  // Property Details List
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  
   const drawSpecRow = (label, val, y) => {
     doc.setTextColor(...colors.textMuted);
+    doc.setFont("helvetica", "normal");
     doc.text(label, col1X, y);
     doc.setTextColor(...colors.brandDark);
     doc.setFont("helvetica", "bold");
-    doc.text(String(val), col1X + 40, y);
-    doc.setFont("helvetica", "normal");
+    doc.text(String(val), col1X + 38, y);
   };
 
   drawSpecRow("Living Area:", `${sqft} sq ft`, gridY);
-  drawSpecRow("Bedrooms:", bedrooms, gridY + 8);
-  drawSpecRow("Bathrooms:", baths, gridY + 16);
-  drawSpecRow("Year Built:", yearBuilt, gridY + 24);
-  drawSpecRow("Quality:", `${quality} / 10`, gridY + 32);
+  drawSpecRow("Bedrooms:", bedrooms, gridY + 6);
+  drawSpecRow("Bathrooms:", baths, gridY + 12);
+  drawSpecRow("Year Built:", yearBuilt, gridY + 18);
+  drawSpecRow("Quality Rating:", `${quality} / 10`, gridY + 24);
 
-  // AI Confidence rendering
-  doc.setFillColor(...colors.lightBg); // Light bg instead of trying alpha on setFillColor
-  doc.roundedRect(col2X, gridY - 4, 70, 24, 2, 2, "F");
-  
+  // AI Confidence badge
+  doc.setFillColor(...colors.lightBg);
+  doc.roundedRect(col2X, gridY - 4, 65, 26, 2, 2, "F");
+
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.setTextColor(...confidenceColor);
-  doc.text(`${confidencePct}%`, col2X + 5, gridY + 8);
-  
-  doc.setFontSize(10);
-  doc.text(confidenceLabel, col2X + 5, gridY + 14);
+  doc.text(`${confidencePct}%`, col2X + 6, gridY + 8);
 
-  currentY = gridY + 50;
+  doc.setFontSize(9);
+  doc.setTextColor(...confidenceColor);
+  doc.text(confidenceLabel, col2X + 6, gridY + 16);
 
-  // --- 5. PAGE 2: COMPARABLE SALES ---
+  currentY = gridY + 34;
+
+  // --- 5. EXPLAINABLE AI (XAI) ATTRIBUTION TABLE ---
+  const attributions = valuation.attributions || [];
+  if (attributions.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...colors.brandDark);
+    doc.text("Valuation Attribution Drivers (Explainable AI)", margin, currentY);
+    currentY += 4;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...colors.textMuted);
+    doc.text("Attribute-by-attribute contribution breakdown vs the regional benchmark home.", margin, currentY);
+    currentY += 4;
+
+    const attrTableHead = [["Value Driver", "Category", "Property Attribute", "Impact ($ / %)"]];
+    const attrTableBody = attributions.map(a => [
+      a.feature_name || a.featureName,
+      a.category,
+      a.detail_description || a.detailDescription || "—",
+      `${a.formatted_amount || a.formattedAmount} (${a.percentage}%)`
+    ]);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: attrTableHead,
+      body: attrTableBody,
+      theme: 'grid',
+      headStyles: { fillColor: colors.brandDark, textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: colors.lightBg },
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 2.5 },
+      columnStyles: {
+        0: { fontStyle: 'bold' },
+        3: { halign: 'right', fontStyle: 'bold', textColor: colors.emerald }
+      }
+    });
+
+    currentY = doc.lastAutoTable.finalY + 10;
+  }
+
+  // --- 6. COMPARABLE SALES (PAGE 2) ---
   const comps = valuation.comparables || [];
   if (comps.length > 0) {
     doc.addPage();
     let p2Y = margin;
-    
+
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFontSize(16);
     doc.setTextColor(...colors.brandDark);
     doc.text("Comparable Sales", margin, p2Y);
-    p2Y += 6;
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(...colors.textMuted);
-    doc.text("Recently sold properties similar to this valuation profile.", margin, p2Y);
-    p2Y += 10;
+    p2Y += 5;
 
-    // Prepare table data
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...colors.textMuted);
+    doc.text("Recently sold properties similar to this valuation profile in Ames, Iowa.", margin, p2Y);
+    p2Y += 7;
+
     const tableHead = [["Address", "Sale Date", "Similarity", "Sq Ft", "Beds/Baths", "Sale Price"]];
     const tableBody = comps.map(c => [
       c.address,
@@ -241,7 +276,7 @@ export const generateValuationPDF = async (valuation, formData) => {
       theme: 'grid',
       headStyles: { fillColor: colors.brandDark, textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: colors.lightBg },
-      styles: { font: "helvetica", fontSize: 10, cellPadding: 4 },
+      styles: { font: "helvetica", fontSize: 10, cellPadding: 3.5 },
       columnStyles: {
         2: { halign: 'center' },
         3: { halign: 'right' },
@@ -251,7 +286,14 @@ export const generateValuationPDF = async (valuation, formData) => {
     });
   }
 
-  // Save the PDF
+  // Handle Return or Download
   const filename = address.replace(/[^a-z0-9]/gi, '_').toLowerCase() || "valuation";
-  doc.save(`ValuAltion_${filename}.pdf`);
+  if (options?.autoDownload !== false) {
+    doc.save(`ValuAltion_${filename}.pdf`);
+  }
+
+  if (options?.returnBase64) {
+    const dataUri = doc.output('datauristring');
+    return dataUri.split(',')[1];
+  }
 };
