@@ -1,5 +1,5 @@
-# Stage 1: Build JAR with Maven
-FROM maven:3.9.6-eclipse-temurin-17 AS builder
+# Stage 1: Build JAR with Maven (Java 21)
+FROM maven:3.9.6-eclipse-temurin-21 AS builder
 WORKDIR /build
 
 COPY pom.xml .
@@ -8,8 +8,8 @@ RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests -B
 
-# Stage 2: Minimal runtime image
-FROM eclipse-temurin:17-jre-jammy
+# Stage 2: Minimal runtime image (Java 21 JRE)
+FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
