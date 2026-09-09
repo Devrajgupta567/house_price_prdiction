@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Home, MapPin, Layers, Calendar, Star, Shield,
-  Wind, Flame, Car, Sparkles, ArrowRight, AlertCircle
+  Wind, Flame, Car, Calculator, ArrowRight, AlertCircle
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { valuationAPI } from "../../services/api";
@@ -152,8 +152,8 @@ export default function EstimatePage() {
           transition={{ duration: 0.5 }}
         >
           <div className="badge badge--accent" style={{ marginBottom: "var(--space-2)" }}>
-            <Sparkles size={13} />
-            <span>AI Valuation Studio</span>
+            <Calculator size={13} />
+            <span>Valuation Studio</span>
           </div>
           <h1 className="heading-2">Property Valuation Calculator</h1>
           <p className="body-lg text-secondary">
@@ -474,7 +474,6 @@ export default function EstimatePage() {
                     <span className="btn-loading-spinner" />
                   ) : (
                     <>
-                      <Sparkles size={18} />
                       <span>Calculate Property Valuation</span>
                       <ArrowRight size={18} />
                     </>

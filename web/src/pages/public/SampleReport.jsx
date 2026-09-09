@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Sparkles, Building, TrendingUp, Calendar, CheckCircle } from "lucide-react";
+import { ArrowRight, Building, TrendingUp, Calendar, CheckCircle } from "lucide-react";
 import ScrollReveal from "../../components/ScrollReveal";
 
 /* ──── Mock Data ──── */

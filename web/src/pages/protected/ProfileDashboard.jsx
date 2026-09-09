@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   User, Mail, Phone, MapPin, Briefcase, Calendar, Shield,
-  CheckCircle, Edit3, Clock, Sparkles, Home, ArrowRight,
+  CheckCircle, Edit3, Clock, Home, ArrowRight,
   TrendingUp, Layers, Star, AlertCircle, Save, ExternalLink, Download
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -234,7 +234,6 @@ export default function ProfileDashboard() {
                   You haven't run any valuations yet. Use our AI model to estimate your house value in seconds.
                 </p>
                 <Link to="/estimate" className="btn btn--accent btn--lg" style={{ display: "inline-flex", gap: "8px" }}>
-                  <Sparkles size={18} />
                   <span>Estimate Your Property Now</span>
                   <ArrowRight size={18} />
                 </Link>

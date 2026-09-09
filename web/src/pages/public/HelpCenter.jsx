@@ -8,8 +8,7 @@ import {
   FileText,
   Home,
   MessageCircle,
-  ArrowRight,
-  Sparkles
+  ArrowRight
 } from "lucide-react";
 import Accordion from "../../components/Accordion";
 import ScrollReveal from "../../components/ScrollReveal";

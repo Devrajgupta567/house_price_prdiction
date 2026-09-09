@@ -66,20 +66,21 @@ class ValuAltionApplicationTests {
         String testEmail = "testuser_" + System.currentTimeMillis() + "@valualtion.com";
         RegisterRequest registerReq = new RegisterRequest(testEmail, "SecurePassword123!", "Jane Doe", "ROLE_HOMEOWNER");
 
-        // 1. Signup
+        // 1. Signup initiates OTP verification flow
         mockMvc.perform(post("/api/v1/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(registerReq)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.token").isString())
+                .andExpect(jsonPath("$.pendingVerification").value(true))
                 .andExpect(jsonPath("$.email").value(testEmail));
 
-        // 2. Signin
-        AuthRequest loginReq = new AuthRequest(testEmail, "SecurePassword123!");
+        // 2. Signin with verified seed account
+        AuthRequest loginReq = new AuthRequest("demo@valualtion.com", "Password123!");
         mockMvc.perform(post("/api/v1/auth/signin")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").isString());
+                .andExpect(jsonPath("$.token").isString())
+                .andExpect(jsonPath("$.email").value("demo@valualtion.com"));
     }
 }

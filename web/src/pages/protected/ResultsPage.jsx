@@ -3,7 +3,7 @@ import { useLocation, useNavigate, Link } from "react-router-dom";
 import {
   DollarSign, TrendingUp, TrendingDown, Home, BedDouble, Bath,
   Calendar, Star, MapPin, ArrowLeft, RotateCcw, Shield, BarChart3,
-  Download, Mail, CheckCircle2, AlertCircle, Sparkles, SlidersHorizontal,
+  Download, Mail, CheckCircle2, AlertCircle, SlidersHorizontal,
   ChevronRight, Compass
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -258,7 +258,7 @@ export default function ResultsPage() {
             animate={{ opacity: 1, y: 0 }}
           >
             <div className="results-stat-icon" style={{ color: "var(--color-emerald-400)" }}>
-              <Sparkles size={22} />
+              <BarChart3 size={22} />
             </div>
             <div>
               <span className="body-xs text-tertiary">Vs Ames Benchmark</span>
@@ -307,7 +307,7 @@ export default function ResultsPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
               <div>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)", padding: "4px 12px", borderRadius: "999px", background: "rgba(212, 175, 55, 0.12)", color: "var(--color-gold-400)", fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "var(--space-2)" }}>
-                  <Sparkles size={14} />
+                  <SlidersHorizontal size={14} />
                   Explainable AI (XAI) Valuation Attribution
                 </div>
                 <h3 className="heading-3" style={{ margin: "4px 0" }}>

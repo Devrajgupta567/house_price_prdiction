@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import {
-  Sparkles,
   TrendingUp,
   ShieldCheck,
   Award,
@@ -80,7 +79,7 @@ export default function About() {
         <div className="container container--narrow" style={{ textAlign: "center" }}>
           <ScrollReveal>
             <div className="badge badge--brand" style={{ marginBottom: "var(--space-3)" }}>
-              <Sparkles size={13} />
+              <Compass size={13} />
               <span>Our Mission &amp; Technology</span>
             </div>
             <h1 className="heading-1" style={{ marginBottom: "var(--space-4)" }}>
@@ -91,7 +90,6 @@ export default function About() {
             </p>
             <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "center", flexWrap: "wrap" }}>
               <Link to="/estimate" className="btn btn--accent btn--lg">
-                <Sparkles size={18} />
                 <span>Try the Valuation Tool</span>
                 <ArrowRight size={18} />
               </Link>

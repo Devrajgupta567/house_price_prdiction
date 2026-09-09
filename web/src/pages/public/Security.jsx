@@ -8,8 +8,7 @@ import {
   FileCheck,
   CheckCircle2,
   AlertTriangle,
-  ArrowRight,
-  Sparkles
+  ArrowRight
 } from "lucide-react";
 import ScrollReveal from "../../components/ScrollReveal";
 
