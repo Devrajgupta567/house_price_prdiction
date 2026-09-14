@@ -3,7 +3,8 @@
  * Auto-attaches JWT token to all authenticated requests.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const rawBase = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const API_BASE = rawBase.endsWith("/") ? rawBase.slice(0, -1) : rawBase;
 
 function getToken() {
   return localStorage.getItem("valualtion_token");
