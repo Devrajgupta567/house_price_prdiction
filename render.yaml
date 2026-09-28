@@ -33,18 +33,20 @@ services:
           property: connectionString
 
       # ── ML Service URL (auto-injected from service 1) ──
+      # Note: host gives plain hostname e.g. valualtion-ml.onrender.com
+      # Backend code prepends https:// automatically
       - key: ML_SERVICE_URL
         fromService:
           type: web
           name: valualtion-ml
-          property: url
+          property: host
 
       # ── Frontend URL for CORS (auto-injected from service 3) ──
       - key: CORS_ALLOWED_ORIGINS
         fromService:
           type: web
           name: valualtion-web
-          property: url
+          property: host
 
       # ── JWT Secret (auto-generated strong random key) ──
       - key: JWT_SECRET
@@ -77,11 +79,12 @@ services:
         destination: /index.html
     envVars:
       # ── Backend URL injected at BUILD TIME into the React bundle ──
+      # Note: host gives plain hostname — api.js prepends https:// + /api/v1
       - key: VITE_API_BASE_URL
         fromService:
           type: web
           name: valualtion-backend
-          property: url
+          property: host
 
 # ════════════════════════════════════════════════════════════════════
 # DATABASE — Managed PostgreSQL (Free tier, 1 GB)

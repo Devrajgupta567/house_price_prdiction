@@ -3,8 +3,28 @@
  * Auto-attaches JWT token to all authenticated requests.
  */
 
-const rawBase = import.meta.env.VITE_API_BASE_URL || "/api/v1";
-const API_BASE = rawBase.endsWith("/") ? rawBase.slice(0, -1) : rawBase;
+/**
+ * Builds the correct API base URL for all environments:
+ *  - Local dev:    VITE_API_BASE_URL is unset → uses "/api/v1" (proxied by Vite)
+ *  - Render prod:  VITE_API_BASE_URL = "valualtion-backend.onrender.com" (plain host)
+ *                  → becomes "https://valualtion-backend.onrender.com/api/v1"
+ */
+function buildApiBase() {
+  const raw = import.meta.env.VITE_API_BASE_URL;
+  if (!raw) return "/api/v1";                          // local dev via Vite proxy
+
+  const trimmed = raw.replace(/\/$/, "");              // strip trailing slash
+
+  // Already a full URL (has scheme)
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed.endsWith("/api/v1") ? trimmed : `${trimmed}/api/v1`;
+  }
+
+  // Plain hostname injected by Render → add https:// and /api/v1
+  return `https://${trimmed}/api/v1`;
+}
+
+const API_BASE = buildApiBase();
 
 function getToken() {
   return localStorage.getItem("valualtion_token");

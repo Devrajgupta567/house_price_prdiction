@@ -95,10 +95,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        if (allowedOrigins != null && (allowedOrigins.contains("*") || allowedOrigins.isEmpty())) {
+        List<String> normalized = normalizeOrigins(allowedOrigins);
+        if (normalized.contains("*")) {
             configuration.setAllowedOriginPatterns(List.of("*"));
         } else {
-            configuration.setAllowedOriginPatterns(allowedOrigins);
+            configuration.setAllowedOriginPatterns(normalized);
         }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
@@ -107,5 +108,24 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    /**
+     * Render's fromService host property injects plain hostnames (no https://).
+     * This normalises each origin so CORS works correctly in production.
+     */
+    private List<String> normalizeOrigins(List<String> origins) {
+        if (origins == null) return List.of("*");
+        return origins.stream()
+                .flatMap(origin -> {
+                    String trimmed = origin.trim();
+                    if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.equals("*")) {
+                        return java.util.stream.Stream.of(trimmed);
+                    }
+                    // Plain hostname from Render — add https:// variant
+                    return java.util.stream.Stream.of("https://" + trimmed, "http://" + trimmed);
+                })
+                .distinct()
+                .toList();
     }
 }
