@@ -12,7 +12,9 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 10000          # Render free tier always uses 10000
+        value: 10000
+      - key: PYTHON_VERSION
+        value: "3.12"
 
   # ════════════════════════════════════════════════════════════════════
   # SERVICE 2 — Spring Boot Java 21 Backend (Docker)
