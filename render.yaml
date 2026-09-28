@@ -85,6 +85,9 @@ services:
           type: web
           name: valualtion-backend
           property: host
+      # ── Node version — required for Vite 8 + React 19 ──
+      - key: NODE_VERSION
+        value: "22"
 
 # ════════════════════════════════════════════════════════════════════
 # DATABASE — Managed PostgreSQL (Free tier, 1 GB)
