@@ -29,7 +29,7 @@ services:
         fromService:
           type: web
           name: valualtion-ml
-          property: host
+          property: url
       - key: EMAIL_ENABLED
         value: "true"
       - key: SMTP_HOST

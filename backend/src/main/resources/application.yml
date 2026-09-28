@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:9090}
+  port: ${PORT:-9090}
 
 spring:
   application:
@@ -46,7 +46,7 @@ app:
     expiration-ms: 86400000  # 24 hours
 
   ml-service:
-    url: ${ML_SERVICE_URL:http://127.0.0.1:8000}
+    url: ${ML_SERVICE_URL:http://127.0.0.1:8000}  # Render sets full https:// URL via env var override
 
   email:
     # Enabled real email sending via Gmail SMTP
