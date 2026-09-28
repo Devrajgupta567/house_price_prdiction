@@ -1,0 +1,94 @@
+services:
+
+  # ════════════════════════════════════════════════════════════════════
+  # SERVICE 1 — Python FastAPI ML Microservice (Docker)
+  # ════════════════════════════════════════════════════════════════════
+  - type: web
+    name: valualtion-ml
+    runtime: docker
+    dockerfilePath: ./Dockerfile.ml
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 10000          # Render free tier always uses 10000
+
+  # ════════════════════════════════════════════════════════════════════
+  # SERVICE 2 — Spring Boot Java 21 Backend (Docker)
+  # ════════════════════════════════════════════════════════════════════
+  - type: web
+    name: valualtion-backend
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /api/v1/health
+    envVars:
+      # ── Database (auto-injected from managed PostgreSQL below) ──
+      - key: DATABASE_URL
+        fromDatabase:
+          name: valualtion-db
+          property: connectionString
+
+      # ── ML Service URL (auto-injected from service 1) ──
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: valualtion-ml
+          property: url
+
+      # ── Frontend URL for CORS (auto-injected from service 3) ──
+      - key: CORS_ALLOWED_ORIGINS
+        fromService:
+          type: web
+          name: valualtion-web
+          property: url
+
+      # ── JWT Secret (auto-generated strong random key) ──
+      - key: JWT_SECRET
+        generateValue: true
+
+      # ── Email / SMTP ──
+      - key: EMAIL_ENABLED
+        value: "true"
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        value: getvalaltion@gmail.com
+      - key: SMTP_PASSWORD
+        sync: false           # Set this secret manually in Render dashboard
+
+  # ════════════════════════════════════════════════════════════════════
+  # SERVICE 3 — React Frontend (Static Site, built by Render)
+  # ════════════════════════════════════════════════════════════════════
+  - type: web
+    name: valualtion-web
+    runtime: static
+    buildCommand: cd web && npm ci && npm run build
+    staticPublishPath: ./web/dist
+    pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # ── Backend URL injected at BUILD TIME into the React bundle ──
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: valualtion-backend
+          property: url
+
+# ════════════════════════════════════════════════════════════════════
+# DATABASE — Managed PostgreSQL (Free tier, 1 GB)
+# ════════════════════════════════════════════════════════════════════
+databases:
+  - name: valualtion-db
+    databaseName: valualtion
+    user: valualtion_user
+    plan: free
+    region: oregon

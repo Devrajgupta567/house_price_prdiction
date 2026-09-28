@@ -1,3 +1,7 @@
+# Environment secrets — never commit
+.env
+.env.local
+
 web/node_modules/
 web/dist/
 

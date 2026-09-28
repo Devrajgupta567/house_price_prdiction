@@ -18,13 +18,8 @@ app = FastAPI(title="House Price API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:8000",
-        "http://localhost:8000",
-        "http://127.0.0.1:5173",
-        "http://localhost:5173",
-        "*",
-    ],
+    allow_origins=["*"],   # Render handles origin security via HTTPS
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
