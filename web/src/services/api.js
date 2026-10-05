@@ -41,10 +41,20 @@ async function request(endpoint, options = {}) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (netErr) {
+    if (netErr.name === "TypeError" || netErr.message === "Failed to fetch") {
+      throw new Error(
+        "Unable to reach server. The free-tier backend is likely waking up from sleep (~40s). Please wait a moment and try again."
+      );
+    }
+    throw netErr;
+  }
 
   // Handle non-JSON responses
   const contentType = response.headers.get("content-type");

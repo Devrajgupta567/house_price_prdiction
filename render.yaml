@@ -34,21 +34,13 @@ services:
           name: valualtion-db
           property: connectionString
 
-      # ── ML Service URL (auto-injected from service 1) ──
-      # Note: host gives plain hostname e.g. valualtion-ml.onrender.com
-      # Backend code prepends https:// automatically
+      # ── ML Service URL (direct URL for deployed ML service) ──
       - key: ML_SERVICE_URL
-        fromService:
-          type: web
-          name: valualtion-ml
-          property: host
+        value: "https://valualtion-ml-zclt.onrender.com"
 
-      # ── Frontend URL for CORS (auto-injected from service 3) ──
+      # ── Frontend URL for CORS (allow all so any preview/custom domain works) ──
       - key: CORS_ALLOWED_ORIGINS
-        fromService:
-          type: web
-          name: valualtion-web
-          property: host
+        value: "*"
 
       # ── JWT Secret (auto-generated strong random key) ──
       - key: JWT_SECRET

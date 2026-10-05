@@ -24,4 +24,4 @@ EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:${PORT:-10000}/api/v1/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "java -jar -Dserver.port=${PORT:-10000} app.jar"]
+ENTRYPOINT ["sh", "-c", "java -XX:+UseSerialGC -Xss512k -Xmx350m -jar -Dserver.port=${PORT:-10000} app.jar"]
