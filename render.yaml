@@ -80,13 +80,9 @@ services:
         source: /*
         destination: /index.html
     envVars:
-      # ── Backend URL injected at BUILD TIME into the React bundle ──
-      # Note: host gives plain hostname — api.js prepends https:// + /api/v1
+      # ── Backend URL hardcoded (fromService doesn't resolve at static build time) ──
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: valualtion-backend
-          property: host
+        value: "https://valualtion-backend-zclt.onrender.com/api/v1"
       # ── Node version — required for Vite 8 + React 19 ──
       - key: NODE_VERSION
         value: "22"
