@@ -28,6 +28,9 @@ services:
     region: oregon
     healthCheckPath: /api/v1/health
     envVars:
+      - key: PORT
+        value: 10000
+
       # ── Database (auto-injected from managed PostgreSQL below) ──
       - key: DATABASE_URL
         fromDatabase:
