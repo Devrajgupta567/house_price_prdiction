@@ -66,10 +66,10 @@ public class AuthService {
         user.setOtpExpiry(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES));
         userRepository.save(user);
 
-        // Send OTP email (or log to console if email is disabled)
+        // Send OTP email asynchronously in background
         emailService.sendOtpEmail(request.getEmail(), request.getFullName(), otp);
 
-        return AuthResponse.pendingVerification(request.getEmail(), request.getFullName());
+        return AuthResponse.pendingVerification(request.getEmail(), request.getFullName(), otp);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ public class AuthService {
     // Resend OTP
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    public void resendOtp(String email) {
+    public AuthResponse resendOtp(String email) {
         User user = findUnverifiedUser(email);
 
         String otp = generateOtp();
@@ -145,6 +145,7 @@ public class AuthService {
         userRepository.save(user);
 
         emailService.sendOtpEmail(email, user.getFullName(), otp);
+        return AuthResponse.pendingVerification(email, user.getFullName(), otp);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

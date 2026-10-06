@@ -45,21 +45,24 @@ public class EmailService {
             return;
         }
 
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        // Run mail delivery asynchronously so HTTP request returns immediately (<100ms)
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom(fromAddress, "ValuAltion");
-            helper.setTo(toEmail);
-            helper.setSubject("Your ValuAltion Verification Code: " + otp);
-            helper.setText(buildOtpHtml(fullName, otp), true);
+                helper.setFrom(fromAddress, "ValuAltion");
+                helper.setTo(toEmail);
+                helper.setSubject("Your ValuAltion Verification Code: " + otp);
+                helper.setText(buildOtpHtml(fullName, otp), true);
 
-            mailSender.send(message);
-            log.info("OTP email successfully sent to {}", toEmail);
-        } catch (Exception ex) {
-            log.error("Failed to send OTP email to {}: {}", toEmail, ex.getMessage(), ex);
-            // Do NOT rethrow — OTP is already logged above so the user can still proceed
-        }
+                mailSender.send(message);
+                log.info("OTP email successfully sent to {}", toEmail);
+            } catch (Exception ex) {
+                log.error("Failed to send OTP email to {}: {}", toEmail, ex.getMessage());
+                // Do NOT rethrow — OTP is already logged above so the user can still proceed
+            }
+        });
     }
 
     private String buildOtpHtml(String name, String otp) {
@@ -131,18 +134,21 @@ public class EmailService {
             return;
         }
 
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromAddress, "ValuAltion");
-            helper.setTo(toEmail);
-            helper.setSubject("ValuAltion Password Reset Code: " + otp);
-            helper.setText(buildResetHtml(fullName, otp), true);
-            mailSender.send(message);
-            log.info("Password reset email sent to {}", toEmail);
-        } catch (Exception ex) {
-            log.error("Failed to send password reset email to {}: {}", toEmail, ex.getMessage(), ex);
-        }
+        // Run mail delivery asynchronously so HTTP request returns immediately
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+                helper.setFrom(fromAddress, "ValuAltion");
+                helper.setTo(toEmail);
+                helper.setSubject("ValuAltion Password Reset Code: " + otp);
+                helper.setText(buildResetHtml(fullName, otp), true);
+                mailSender.send(message);
+                log.info("Password reset email sent to {}", toEmail);
+            } catch (Exception ex) {
+                log.error("Failed to send password reset email to {}: {}", toEmail, ex.getMessage());
+            }
+        });
     }
 
     private String buildResetHtml(String name, String otp) {

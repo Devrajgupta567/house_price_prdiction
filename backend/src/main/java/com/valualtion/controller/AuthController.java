@@ -44,9 +44,9 @@ public class AuthController {
 
     // ── Resend OTP ────────────────────────────────────────────────────────────
     @PostMapping("/resend-otp")
-    public ResponseEntity<Map<String, String>> resendOtp(@RequestBody Map<String, String> body) {
-        authService.resendOtp(body.get("email"));
-        return ResponseEntity.ok(Map.of("message", "OTP resent successfully."));
+    public ResponseEntity<AuthResponse> resendOtp(@RequestBody Map<String, String> body) {
+        AuthResponse response = authService.resendOtp(body.get("email"));
+        return ResponseEntity.ok(response);
     }
 
     // ── Legacy signup (kept for backward compat) ──────────────────────────────

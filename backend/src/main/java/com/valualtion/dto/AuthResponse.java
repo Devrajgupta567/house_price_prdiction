@@ -14,6 +14,8 @@ public class AuthResponse {
     private boolean pendingVerification = false;
     private boolean otpVerified = false;
     private String message;
+    /** Development/sandbox OTP returned so users can verify even if third-party SMTP is blocked. */
+    private String devOtp;
 
     public AuthResponse() {}
 
@@ -31,10 +33,15 @@ public class AuthResponse {
      * No JWT is included at this stage.
      */
     public static AuthResponse pendingVerification(String email, String fullName) {
+        return pendingVerification(email, fullName, null);
+    }
+
+    public static AuthResponse pendingVerification(String email, String fullName, String devOtp) {
         AuthResponse r = new AuthResponse();
         r.email = email;
         r.fullName = fullName;
         r.pendingVerification = true;
+        r.devOtp = devOtp;
         r.message = "A 6-digit OTP has been sent to " + email + ". Please verify to continue.";
         return r;
     }
@@ -80,5 +87,8 @@ public class AuthResponse {
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+
+    public String getDevOtp() { return devOtp; }
+    public void setDevOtp(String devOtp) { this.devOtp = devOtp; }
 }
 
