@@ -69,7 +69,7 @@ public class AuthService {
         // Send OTP email asynchronously in background
         emailService.sendOtpEmail(request.getEmail(), request.getFullName(), otp);
 
-        return AuthResponse.pendingVerification(request.getEmail(), request.getFullName(), otp);
+        return AuthResponse.pendingVerification(request.getEmail(), request.getFullName());
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -145,7 +145,7 @@ public class AuthService {
         userRepository.save(user);
 
         emailService.sendOtpEmail(email, user.getFullName(), otp);
-        return AuthResponse.pendingVerification(email, user.getFullName(), otp);
+        return AuthResponse.pendingVerification(email, user.getFullName());
     }
 
     // ─────────────────────────────────────────────────────────────────────────

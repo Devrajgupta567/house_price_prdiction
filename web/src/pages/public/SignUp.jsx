@@ -100,7 +100,6 @@ export default function SignUp() {
   // Step 1 data
   const [name,  setName]  = useState("");
   const [email, setEmail] = useState("");
-  const [devHint, setDevHint] = useState("");
 
   // Step 2 data
   const [otp, setOtp]               = useState("");
@@ -137,8 +136,7 @@ export default function SignUp() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err("Please enter a valid email address.");
     setLoading(true); clear();
     try {
-      const res = await initiateSignup(name.trim(), email.trim());
-      if (res?.devOtp) setDevHint(res.devOtp);
+      await initiateSignup(name.trim(), email.trim());
       setStep(2); startCooldown(60);
     } catch (ex) { err(ex.message || "Failed to send OTP. Please try again."); }
     finally { setLoading(false); }
@@ -161,8 +159,7 @@ export default function SignUp() {
     if (cooldown > 0 || resending) return;
     setResending(true); clear();
     try {
-      const res = await authAPI.resendOtp(email);
-      if (res?.devOtp) setDevHint(res.devOtp);
+      await authAPI.resendOtp(email);
       setOtp(""); startCooldown(60);
     } catch (ex) { err(ex.message || "Failed to resend. Please try again."); }
     finally { setResending(false); }
@@ -293,11 +290,6 @@ export default function SignUp() {
                       <p className="body-xs text-secondary" style={{ marginTop: 4 }}>
                         Code sent to <strong>{email}</strong>
                       </p>
-                      {devHint && (
-                        <p className="body-xs" style={{ marginTop: 8, color: "#e2b866", background: "rgba(197, 165, 90, 0.12)", padding: "6px 10px", borderRadius: "6px", border: "1px solid rgba(197, 165, 90, 0.3)" }}>
-                          Verification code: <strong style={{ letterSpacing: "1px", fontSize: "14px" }}>{devHint}</strong>
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
