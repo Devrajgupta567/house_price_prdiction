@@ -49,9 +49,13 @@ services:
       - key: JWT_SECRET
         generateValue: true
 
-      # ── Email / SMTP ──
+      # ── Email / SMTP & Resend HTTP API ──
       - key: EMAIL_ENABLED
         value: "true"
+      - key: RESEND_API_KEY
+        sync: false           # Set your Resend API key (re_...) in Render Dashboard Environment
+      - key: RESEND_FROM
+        value: "ValuAltion <onboarding@resend.dev>"
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT

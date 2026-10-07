@@ -1,5 +1,6 @@
 package com.valualtion.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -9,12 +10,24 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
 @Service
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
     private final JavaMailSender mailSender;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
 
     @Value("${app.email.enabled:false}")
     private boolean emailEnabled;
@@ -22,8 +35,18 @@ public class EmailService {
     @Value("${app.email.from:no-reply@valualtion.com}")
     private String fromAddress;
 
-    public EmailService(JavaMailSender mailSender) {
+    @Value("${app.email.resend-api-key:}")
+    private String resendApiKey;
+
+    @Value("${app.email.resend-from:ValuAltion <onboarding@resend.dev>}")
+    private String resendFrom;
+
+    public EmailService(JavaMailSender mailSender, ObjectMapper objectMapper) {
         this.mailSender = mailSender;
+        this.objectMapper = objectMapper;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(8))
+                .build();
     }
 
     /**
@@ -41,28 +64,73 @@ public class EmailService {
         log.info("=======================================================");
 
         if (!emailEnabled) {
-            log.info("  [EMAIL DISABLED] OTP printed above — configure SMTP to send real emails.");
+            log.info("  [EMAIL DISABLED] OTP printed above — configure email provider to send real emails.");
             return;
         }
 
         // Run mail delivery asynchronously so HTTP request returns immediately (<100ms)
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
-            try {
-                MimeMessage message = mailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-                helper.setFrom(fromAddress, "ValuAltion");
-                helper.setTo(toEmail);
-                helper.setSubject("Your ValuAltion Verification Code: " + otp);
-                helper.setText(buildOtpHtml(fullName, otp), true);
-
-                mailSender.send(message);
-                log.info("OTP email successfully sent to {}", toEmail);
-            } catch (Exception ex) {
-                log.error("Failed to send OTP email to {}: {}", toEmail, ex.getMessage());
-                // Do NOT rethrow — OTP is already logged above so the user can still proceed
-            }
+        CompletableFuture.runAsync(() -> {
+            deliverEmail(toEmail, "Your ValuAltion Verification Code: " + otp, buildOtpHtml(fullName, otp));
         });
+    }
+
+    /**
+     * Unified email delivery:
+     * 1. Prioritizes Resend HTTP API (HTTPS port 443 — bypasses Render cloud SMTP port blocks)
+     * 2. Falls back to JavaMailSender (SMTP) if Resend API key is not configured or fails
+     */
+    private void deliverEmail(String toEmail, String subject, String htmlContent) {
+        if (resendApiKey != null && !resendApiKey.isBlank()) {
+            try {
+                sendViaResend(toEmail, subject, htmlContent);
+                log.info("Email successfully sent via Resend HTTP API to {}", toEmail);
+                return;
+            } catch (Exception ex) {
+                log.error("Resend HTTP API failed for {}: {}. Attempting SMTP fallback...", toEmail, ex.getMessage());
+            }
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromAddress, "ValuAltion");
+            helper.setTo(toEmail);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+            mailSender.send(message);
+            log.info("Email successfully sent via SMTP to {}", toEmail);
+        } catch (Exception ex) {
+            log.error("Failed to send email via SMTP to {}: {}", toEmail, ex.getMessage());
+        }
+    }
+
+    private void sendViaResend(String toEmail, String subject, String htmlContent) throws Exception {
+        String fromSender = (resendFrom != null && !resendFrom.isBlank())
+                ? resendFrom
+                : "ValuAltion <onboarding@resend.dev>";
+
+        Map<String, Object> payloadMap = Map.of(
+                "from", fromSender,
+                "to", List.of(toEmail),
+                "subject", subject,
+                "html", htmlContent
+        );
+        String payloadJson = objectMapper.writeValueAsString(payloadMap);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.resend.com/emails"))
+                .header("Authorization", "Bearer " + resendApiKey.trim())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payloadJson, StandardCharsets.UTF_8))
+                .timeout(Duration.ofSeconds(10))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 200 && response.statusCode() < 300) {
+            log.info("Resend HTTP API accepted email (status {}): {}", response.statusCode(), response.body());
+        } else {
+            throw new RuntimeException("Resend API returned status " + response.statusCode() + ": " + response.body());
+        }
     }
 
     private String buildOtpHtml(String name, String otp) {
@@ -135,19 +203,8 @@ public class EmailService {
         }
 
         // Run mail delivery asynchronously so HTTP request returns immediately
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
-            try {
-                MimeMessage message = mailSender.createMimeMessage();
-                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-                helper.setFrom(fromAddress, "ValuAltion");
-                helper.setTo(toEmail);
-                helper.setSubject("ValuAltion Password Reset Code: " + otp);
-                helper.setText(buildResetHtml(fullName, otp), true);
-                mailSender.send(message);
-                log.info("Password reset email sent to {}", toEmail);
-            } catch (Exception ex) {
-                log.error("Failed to send password reset email to {}: {}", toEmail, ex.getMessage());
-            }
+        CompletableFuture.runAsync(() -> {
+            deliverEmail(toEmail, "ValuAltion Password Reset Code: " + otp, buildResetHtml(fullName, otp));
         });
     }
 

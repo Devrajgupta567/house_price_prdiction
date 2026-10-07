@@ -54,9 +54,11 @@ app:
     url: ${ML_SERVICE_URL:http://127.0.0.1:8000}  # Render sets full https:// URL via env var override
 
   email:
-    # Enabled real email sending via Gmail SMTP
+    # Enabled real email sending via Resend HTTP API or SMTP
     enabled: ${EMAIL_ENABLED:true}
     from: ${SMTP_FROM:getvalaltion@gmail.com}
+    resend-api-key: ${RESEND_API_KEY:}
+    resend-from: ${RESEND_FROM:ValuAltion <onboarding@resend.dev>}
 
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
