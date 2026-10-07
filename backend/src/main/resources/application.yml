@@ -38,9 +38,11 @@ spring:
           starttls:
             enable: true
             required: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+          ssl:
+            trust: "*"
+          connectiontimeout: 8000
+          timeout: 8000
+          writetimeout: 8000
         debug: false
 
 app:

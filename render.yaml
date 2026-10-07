@@ -59,7 +59,7 @@ services:
       - key: SMTP_USERNAME
         value: getvalaltion@gmail.com
       - key: SMTP_PASSWORD
-        sync: false           # Set this secret manually in Render dashboard
+        value: tgxruqdpmcbyuavm
 
   # ════════════════════════════════════════════════════════════════════
   # SERVICE 3 — React Frontend (Static Site, built by Render)
