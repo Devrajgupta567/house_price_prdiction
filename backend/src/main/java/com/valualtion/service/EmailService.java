@@ -41,6 +41,9 @@ public class EmailService {
     @Value("${app.email.resend-from:ValuAltion <onboarding@resend.dev>}")
     private String resendFrom;
 
+    @Value("${app.email.brevo-api-key:}")
+    private String brevoApiKey;
+
     public EmailService(JavaMailSender mailSender, ObjectMapper objectMapper) {
         this.mailSender = mailSender;
         this.objectMapper = objectMapper;
@@ -70,19 +73,36 @@ public class EmailService {
 
         // Run mail delivery asynchronously so HTTP request returns immediately (<100ms)
         CompletableFuture.runAsync(() -> {
-            deliverEmail(toEmail, "Your ValuAltion Verification Code: " + otp, buildOtpHtml(fullName, otp));
+            deliverEmail(toEmail, fullName, "Your ValuAltion Verification Code: " + otp, buildOtpHtml(fullName, otp));
         });
+    }
+
+    private void deliverEmail(String toEmail, String recipientName, String subject, String htmlContent) {
+        deliverEmail(toEmail, recipientName, subject, htmlContent, null, null);
     }
 
     /**
      * Unified email delivery:
-     * 1. Prioritizes Resend HTTP API (HTTPS port 443 — bypasses Render cloud SMTP port blocks)
-     * 2. Falls back to JavaMailSender (SMTP) if Resend API key is not configured or fails
+     * 1. Prioritizes Brevo HTTP API (HTTPS port 443 — bypasses Render cloud SMTP port blocks)
+     * 2. Uses Resend HTTP API (HTTPS port 443 — bypasses Render cloud SMTP port blocks)
+     * 3. Falls back to JavaMailSender (SMTP) for local development or unblocked environments
      */
-    private void deliverEmail(String toEmail, String subject, String htmlContent) {
+    private void deliverEmail(String toEmail, String recipientName, String subject, String htmlContent, byte[] attachmentBytes, String attachmentFileName) {
+        // 1. Brevo HTTP API
+        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+            try {
+                sendViaBrevo(toEmail, recipientName, subject, htmlContent, attachmentBytes, attachmentFileName);
+                log.info("Email successfully sent via Brevo HTTP API to {}", toEmail);
+                return;
+            } catch (Exception ex) {
+                log.error("Brevo HTTP API failed for {}: {}. Attempting fallback...", toEmail, ex.getMessage());
+            }
+        }
+
+        // 2. Resend HTTP API
         if (resendApiKey != null && !resendApiKey.isBlank()) {
             try {
-                sendViaResend(toEmail, subject, htmlContent);
+                sendViaResend(toEmail, subject, htmlContent, attachmentBytes, attachmentFileName);
                 log.info("Email successfully sent via Resend HTTP API to {}", toEmail);
                 return;
             } catch (Exception ex) {
@@ -90,31 +110,87 @@ public class EmailService {
             }
         }
 
+        // 3. SMTP fallback
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            boolean hasAttachment = attachmentBytes != null && attachmentBytes.length > 0;
+            MimeMessageHelper helper = new MimeMessageHelper(message, hasAttachment, "UTF-8");
             helper.setFrom(fromAddress, "ValuAltion");
             helper.setTo(toEmail);
             helper.setSubject(subject);
             helper.setText(htmlContent, true);
+            if (hasAttachment) {
+                String fname = (attachmentFileName != null && !attachmentFileName.isBlank()) ? attachmentFileName : "ValuAltion-Property-Report.pdf";
+                helper.addAttachment(fname, new org.springframework.core.io.ByteArrayResource(attachmentBytes));
+            }
             mailSender.send(message);
             log.info("Email successfully sent via SMTP to {}", toEmail);
         } catch (Exception ex) {
-            log.error("Failed to send email via SMTP to {}: {}", toEmail, ex.getMessage());
+            log.error("Failed to send email via SMTP to {}: {}. Tip: On Render free tier, outbound SMTP ports (25, 465, 587) are blocked by Render. Configure RESEND_API_KEY or BREVO_API_KEY in Render Environment Variables for HTTPS delivery.", toEmail, ex.getMessage());
         }
     }
 
-    private void sendViaResend(String toEmail, String subject, String htmlContent) throws Exception {
+    private void sendViaBrevo(String toEmail, String recipientName, String subject, String htmlContent, byte[] attachmentBytes, String attachmentFileName) throws Exception {
+        String senderEmail = (fromAddress != null && !fromAddress.isBlank()) ? fromAddress : "getvalaltion@gmail.com";
+
+        Map<String, Object> payloadMap = new java.util.HashMap<>();
+        payloadMap.put("sender", Map.of("name", "ValuAltion", "email", senderEmail));
+        payloadMap.put("to", List.of(Map.of(
+                "email", toEmail,
+                "name", (recipientName != null && !recipientName.isBlank()) ? recipientName : toEmail
+        )));
+        payloadMap.put("subject", subject);
+        payloadMap.put("htmlContent", htmlContent);
+
+        if (attachmentBytes != null && attachmentBytes.length > 0) {
+            String fname = (attachmentFileName != null && !attachmentFileName.isBlank())
+                    ? attachmentFileName
+                    : "ValuAltion-Property-Report.pdf";
+            payloadMap.put("attachment", List.of(Map.of(
+                    "name", fname,
+                    "content", java.util.Base64.getEncoder().encodeToString(attachmentBytes)
+            )));
+        }
+
+        String payloadJson = objectMapper.writeValueAsString(payloadMap);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                .header("api-key", brevoApiKey.trim())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payloadJson, StandardCharsets.UTF_8))
+                .timeout(Duration.ofSeconds(10))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 200 && response.statusCode() < 300) {
+            log.info("Brevo HTTP API accepted email (status {}): {}", response.statusCode(), response.body());
+        } else {
+            throw new RuntimeException("Brevo API returned status " + response.statusCode() + ": " + response.body());
+        }
+    }
+
+    private void sendViaResend(String toEmail, String subject, String htmlContent, byte[] attachmentBytes, String attachmentFileName) throws Exception {
         String fromSender = (resendFrom != null && !resendFrom.isBlank())
                 ? resendFrom
                 : "ValuAltion <onboarding@resend.dev>";
 
-        Map<String, Object> payloadMap = Map.of(
-                "from", fromSender,
-                "to", List.of(toEmail),
-                "subject", subject,
-                "html", htmlContent
-        );
+        Map<String, Object> payloadMap = new java.util.HashMap<>();
+        payloadMap.put("from", fromSender);
+        payloadMap.put("to", List.of(toEmail));
+        payloadMap.put("subject", subject);
+        payloadMap.put("html", htmlContent);
+
+        if (attachmentBytes != null && attachmentBytes.length > 0) {
+            String fname = (attachmentFileName != null && !attachmentFileName.isBlank())
+                    ? attachmentFileName
+                    : "ValuAltion-Property-Report.pdf";
+            payloadMap.put("attachments", List.of(Map.of(
+                    "filename", fname,
+                    "content", java.util.Base64.getEncoder().encodeToString(attachmentBytes)
+            )));
+        }
+
         String payloadJson = objectMapper.writeValueAsString(payloadMap);
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -204,7 +280,7 @@ public class EmailService {
 
         // Run mail delivery asynchronously so HTTP request returns immediately
         CompletableFuture.runAsync(() -> {
-            deliverEmail(toEmail, "ValuAltion Password Reset Code: " + otp, buildResetHtml(fullName, otp));
+            deliverEmail(toEmail, fullName, "ValuAltion Password Reset Code: " + otp, buildResetHtml(fullName, otp));
         });
     }
 
@@ -254,30 +330,16 @@ public class EmailService {
         log.info("Preparing valuation report email for {} ({}) - Estimated: ${}", fullName, toEmail, val.getEstimatedValue());
 
         if (!emailEnabled) {
-            log.info("  [EMAIL DISABLED] Email notification logged above — configure SMTP to send live emails.");
+            log.info("  [EMAIL DISABLED] Email notification logged above — configure email provider to send live emails.");
             return;
         }
 
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            boolean hasAttachment = pdfAttachment != null && pdfAttachment.length > 0;
-            MimeMessageHelper helper = new MimeMessageHelper(message, hasAttachment, "UTF-8");
+        String subject = "Your Official ValuAltion Property Report — " + formatCurrency(val.getEstimatedValue());
+        String html = buildValuationReportHtml(fullName, val);
 
-            helper.setFrom(fromAddress, "ValuAltion Appraisals");
-            helper.setTo(toEmail);
-            helper.setSubject("Your Official ValuAltion Property Report — " + formatCurrency(val.getEstimatedValue()));
-            helper.setText(buildValuationReportHtml(fullName, val), true);
-
-            if (hasAttachment) {
-                helper.addAttachment("ValuAltion-Property-Report.pdf", new org.springframework.core.io.ByteArrayResource(pdfAttachment));
-            }
-
-            mailSender.send(message);
-            log.info("Valuation report email successfully sent to {}", toEmail);
-        } catch (Exception ex) {
-            log.error("Failed to send valuation report email to {}: {}", toEmail, ex.getMessage(), ex);
-            throw new RuntimeException("Failed to send valuation report email: " + ex.getMessage());
-        }
+        CompletableFuture.runAsync(() -> {
+            deliverEmail(toEmail, fullName, subject, html, pdfAttachment, "ValuAltion-Property-Report.pdf");
+        });
     }
 
     private String formatCurrency(Double amount) {

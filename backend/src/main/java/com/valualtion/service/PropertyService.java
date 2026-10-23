@@ -22,10 +22,11 @@ public class PropertyService {
         this.authService = authService;
     }
 
+    @Transactional(readOnly = true)
     public List<PropertyDto> getUserProperties() {
         User user = authService.getCurrentUserEntity();
         if (user == null) {
-            throw new IllegalStateException("Authentication required to access saved properties");
+            throw new org.springframework.security.authentication.BadCredentialsException("Authentication required to access saved properties");
         }
 
         return propertyRepository.findByUserIdOrderByCreatedAtDesc(user.getId())

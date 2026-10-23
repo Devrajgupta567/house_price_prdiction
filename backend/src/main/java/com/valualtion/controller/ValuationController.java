@@ -28,16 +28,16 @@ public class ValuationController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ValuationResponse> getValuation(@PathVariable UUID id) {
-        ValuationResponse response = valuationService.getValuationById(id);
-        return ResponseEntity.ok(response);
-    }
-
     @GetMapping("/history")
     public ResponseEntity<List<ValuationResponse>> getUserValuations() {
         List<ValuationResponse> list = valuationService.getUserValuations();
         return ResponseEntity.ok(list);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ValuationResponse> getValuation(@PathVariable UUID id) {
+        ValuationResponse response = valuationService.getValuationById(id);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/email-report")

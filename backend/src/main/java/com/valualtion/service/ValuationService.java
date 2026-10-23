@@ -125,22 +125,43 @@ public class ValuationService {
         return mapToResponse(savedValuation, request, compDtos, prediction.attributions, prediction.baselinePrice, prediction.priceDifference);
     }
 
+    @Transactional(readOnly = true)
     public ValuationResponse getValuationById(UUID valuationId) {
-        Valuation valuation = valuationRepository.findById(valuationId)
-                .orElseThrow(() -> new IllegalArgumentException("Valuation not found with ID: " + valuationId));
+        Valuation valuation = valuationRepository.findByIdWithComparables(valuationId)
+                .orElseGet(() -> valuationRepository.findById(valuationId)
+                        .orElseThrow(() -> new IllegalArgumentException("Valuation not found with ID: " + valuationId)));
 
-        List<ComparableDto> compDtos = valuation.getComparables().stream()
-                .map(c -> new ComparableDto(
-                        c.getAddress(),
-                        c.getSalePrice(),
-                        c.getSimilarityScore(),
-                        c.getDistanceMiles(),
-                        c.getLivingAreaSqft(),
-                        c.getBedrooms(),
-                        c.getFullBath(),
-                        c.getSaleDate()
-                ))
+        return convertValuationToResponse(valuation);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ValuationResponse> getUserValuations() {
+        User user = authService.getCurrentUserEntity();
+        if (user == null) {
+            throw new org.springframework.security.authentication.BadCredentialsException("Authentication required");
+        }
+
+        return valuationRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
+                .stream()
+                .map(this::convertValuationToResponse)
                 .collect(Collectors.toList());
+    }
+
+    private ValuationResponse convertValuationToResponse(Valuation valuation) {
+        List<ComparableDto> compDtos = valuation.getComparables() != null
+                ? valuation.getComparables().stream()
+                        .map(c -> new ComparableDto(
+                                c.getAddress(),
+                                c.getSalePrice(),
+                                c.getSimilarityScore(),
+                                c.getDistanceMiles(),
+                                c.getLivingAreaSqft(),
+                                c.getBedrooms(),
+                                c.getFullBath(),
+                                c.getSaleDate()
+                        ))
+                        .collect(Collectors.toList())
+                : new ArrayList<>();
 
         ValuationRequest req = new ValuationRequest();
         try {
@@ -167,18 +188,6 @@ public class ValuationService {
         double diff = (valuation.getEstimatedValue() != null ? valuation.getEstimatedValue() : 0.0) - baseline;
 
         return mapToResponse(valuation, req, compDtos, attributions, baseline, diff);
-    }
-
-    public List<ValuationResponse> getUserValuations() {
-        User user = authService.getCurrentUserEntity();
-        if (user == null) {
-            throw new IllegalStateException("Authentication required");
-        }
-
-        return valuationRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
-                .stream()
-                .map(v -> getValuationById(v.getId()))
-                .collect(Collectors.toList());
     }
 
     /**

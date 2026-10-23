@@ -51,6 +51,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/v1/valuation/history").authenticated()
                         .requestMatchers(
                                 "/api/v1/auth/signup",
                                 "/api/v1/auth/initiate-signup",
